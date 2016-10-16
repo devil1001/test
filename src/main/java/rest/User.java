@@ -1,7 +1,6 @@
 package rest;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 import javax.inject.Singleton;
 import javax.servlet.http.HttpServletRequest;
@@ -10,7 +9,9 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.sql.SQLException;
+import java.text.ParseException;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 /**
  * Created by devil1001 on 12.10.16.
@@ -34,31 +35,18 @@ public class User {
                     jsonObject.get("username"), jsonObject.get("about"), jsonObject.get("name"), jsonObject.get("email"),
                     jsonObject.has("isAnonymous") ? (jsonObject.getBoolean("isAnonymous") ? '1' : '0') : '0').replaceAll("'null'", "null");
 
+            int uID = RestApplication.DATABASE.execUpdate(String.format("INSERT INTO user (username, about, name, email, isAnonymous) VALUES (%s)", values));
+            jsonObject.put("id", uID);
 
-
-            RestApplication.DATABASE.execUpdate(String.format("INSERT INTO user (username, about, name, email, isAnonymous) VALUES (%s)", values));
-            RestApplication.DATABASE.execQuery(String.format("SELECT * FROM user where email='%s'", jsonObject.getString("email")),
-                    result -> {
-                        JSONObject response = new JSONObject();
-
-                        result.next();
-                        response.put("about", result.getString("about") == null ? JSONObject.NULL : result.getString("about"));
-                        response.put("email", result.getString("email"));
-                        response.put("id", result.getInt("uID"));
-                        response.put("isAnonymous", result.getBoolean("isAnonymous"));
-                        response.put("name", result.getString("name") == null ? JSONObject.NULL : result.getString("name"));
-                        response.put("username", result.getString("username") == null ? JSONObject.NULL : result.getString("username"));
-
-                        jsonResult.put("code", 0);
-                        jsonResult.put("response", response);
-                    });
+            jsonResult.put("code", 0);
+            jsonResult.put("response", jsonObject);
         } catch (SQLException e) {
             jsonResult.put("code", 5);
             jsonResult.put("response", "User exists");
-        } catch (JSONException e) {
+        } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
-        } catch (RuntimeException e) {
+        } catch (NoSuchElementException e) {
             jsonResult.put("code", 4);
             jsonResult.put("response", "Unknown error");
         }
@@ -75,14 +63,18 @@ public class User {
 
         try {
             String email = params.get("user")[0];
-            userDetails(email, jsonResult);
+            JSONObject response = new JSONObject();
+            userDetails(email, response);
+
+            jsonResult.put("code", 0);
+            jsonResult.put("response", response);
         } catch (SQLException e) {
             jsonResult.put("code", 1);
             jsonResult.put("response", "Not found");
         } catch (NullPointerException e) {
             jsonResult.put("code", 3);
             jsonResult.put("response", "Invalid request");
-        } catch (JSONException e) {
+        } catch (RuntimeException e) {
             jsonResult.put("code", 4);
             jsonResult.put("response", "Unknown error");
         }
@@ -90,9 +82,7 @@ public class User {
         return Response.status(Response.Status.OK).entity(jsonResult.toString()).build();
     }
 
-    private void userDetails(String email, JSONObject jsonResult) throws SQLException {
-        JSONObject response = new JSONObject();
-
+    public static void userDetails(String email, JSONObject response) throws SQLException {
         RestApplication.DATABASE.execQuery(String.format("SELECT * FROM user where email='%s'", email),
                 result -> {
                     result.next();
@@ -104,38 +94,32 @@ public class User {
                     response.put("username", result.getString("username") == null ? JSONObject.NULL : result.getString("username"));
                 });
         RestApplication.DATABASE.execQuery(
-                String.format("SELECT u2.email FROM ((user u1 join user_user uu on u1.uID=uu.followee) join user u2 on uu.follower=u2.uID) WHERE u1.email='%s'",
-                        email),
+                String.format("SELECT follower FROM user_user WHERE followee='%s'", email),
                 result -> {
                     JSONArray jsonArray = new JSONArray();
                     while (result.next())
-                        jsonArray.put(result.getString("email"));
+                        jsonArray.put(result.getString("follower"));
 
                     response.put("followers", jsonArray);
                 });
         RestApplication.DATABASE.execQuery(
-                String.format("SELECT u2.email FROM ((user u1 join user_user uu on u1.uID=uu.follower) join user u2 on uu.followee=u2.uID) WHERE u1.email='%s'",
-                        email),
+                String.format("SELECT followee FROM user_user WHERE follower='%s'", email),
                 result -> {
                     JSONArray jsonArray = new JSONArray();
                     while (result.next())
-                        jsonArray.put(result.getString("email"));
+                        jsonArray.put(result.getString("followee"));
 
                     response.put("following", jsonArray);
                 });
         RestApplication.DATABASE.execQuery(
-                String.format("SELECT tID FROM user u JOIN user_thread ut ON u.uID=ut.uID WHERE email='%s'",
-                        email),
+                String.format("SELECT tID FROM user_thread WHERE user='%s'", email),
                 result -> {
                     JSONArray jsonArray = new JSONArray();
                     while (result.next())
-                        jsonArray.put(result.getString("tID"));
+                        jsonArray.put(result.getInt("tID"));
 
                     response.put("subscriptions", jsonArray);
                 });
-
-        jsonResult.put("code", 0);
-        jsonResult.put("response", response);
     }
 
     @POST
@@ -145,7 +129,29 @@ public class User {
     public Response follow(final String input, @Context HttpServletRequest request) {
         JSONObject jsonResult = new JSONObject();
 
-        JSONObject jsonObject = new JSONObject(input);
+        try {
+            JSONObject jsonObject = new JSONObject(input);
+            String follower = jsonObject.getString("follower");
+            String followee = jsonObject.getString("followee");
+
+            RestApplication.DATABASE.execUpdate(String.format("INSERT INTO user_user VALUES ('%s', '%s')", follower, followee));
+
+            JSONObject response = new JSONObject();
+            userDetails(follower, response);
+
+            jsonResult.put("code", 0);
+            jsonResult.put("response", response);
+        } catch (SQLException e) {
+            jsonResult.put("code", 5);
+            jsonResult.put("response", "User exists");
+        } catch (ParseException e) {
+            jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
+            jsonResult.put("response", "Invalid request");
+        } catch (NoSuchElementException e) {
+            jsonResult.put("code", 4);
+            jsonResult.put("response", "Unknown error");
+        }
+
         return Response.status(Response.Status.OK).entity(jsonResult.toString()).build();
     }
 
@@ -156,7 +162,29 @@ public class User {
     public Response unfollow(final String input, @Context HttpServletRequest request) {
         JSONObject jsonResult = new JSONObject();
 
-        JSONObject jsonObject = new JSONObject(input);
+        try {
+            JSONObject jsonObject = new JSONObject(input);
+            String follower = jsonObject.getString("follower");
+            String followee = jsonObject.getString("followee");
+
+            RestApplication.DATABASE.execUpdate(String.format("DELETE FROM user_user WHERE follower='%s' AND followee='%s'", follower, followee));
+
+            JSONObject response = new JSONObject();
+            userDetails(follower, response);
+
+            jsonResult.put("code", 0);
+            jsonResult.put("response", response);
+        } catch (SQLException e) {
+            jsonResult.put("code", 5);
+            jsonResult.put("response", "User exists");
+        } catch (ParseException e) {
+            jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
+            jsonResult.put("response", "Invalid request");
+        } catch (NoSuchElementException e) {
+            jsonResult.put("code", 4);
+            jsonResult.put("response", "Unknown error");
+        }
+
         return Response.status(Response.Status.OK).entity(jsonResult.toString()).build();
     }
 
@@ -166,6 +194,39 @@ public class User {
     public Response listFollowers(@Context HttpServletRequest request) {
         Map<String, String[]> params = request.getParameterMap();
         JSONObject jsonResult = new JSONObject();
+
+        try {
+            String email = params.get("user")[0];
+            String query = String.format("SELECT follower FROM user_user uu JOIN user u ON uu.follower=u.email WHERE followee='%s'%s ORDER BY name DESC", email,
+                    (params.containsKey("since_id") ? String.format(" AND uID >= %s", params.get("since_id")[0]) : ""));
+            if (params.containsKey("order"))
+                query = query.replace("DESC", params.get("order")[0]);
+            if (params.containsKey("limit"))
+                query += " LIMIT " + params.get("limit")[0];
+
+            RestApplication.DATABASE.execQuery(query,
+                    result -> {
+                        JSONArray jsonArray = new JSONArray();
+
+                        while (result.next()) {
+                            JSONObject user = new JSONObject();
+                            userDetails(result.getString("follower"), user);
+                            jsonArray.put(user);
+                        }
+
+                        jsonResult.put("code", 0);
+                        jsonResult.put("response", jsonArray);
+                    });
+        } catch (SQLException e) {
+            jsonResult.put("code", 1);
+            jsonResult.put("response", "Not found");
+        } catch (NullPointerException e) {
+            jsonResult.put("code", 3);
+            jsonResult.put("response", "Invalid request");
+        } catch (RuntimeException e) {
+            jsonResult.put("code", 4);
+            jsonResult.put("response", "Unknown error");
+        }
 
         return Response.status(Response.Status.OK).entity(jsonResult.toString()).build();
     }
@@ -177,6 +238,39 @@ public class User {
         Map<String, String[]> params = request.getParameterMap();
         JSONObject jsonResult = new JSONObject();
 
+        try {
+            String email = params.get("user")[0];
+            String query = String.format("SELECT followee FROM user_user uu JOIN user u ON uu.followee=u.email WHERE follower='%s'%s ORDER BY name DESC", email,
+                    (params.containsKey("since_id") ? String.format(" AND uID >= %s", params.get("since_id")[0]) : ""));
+            if (params.containsKey("order"))
+                query = query.replace("DESC", params.get("order")[0]);
+            if (params.containsKey("limit"))
+                query += " LIMIT " + params.get("limit")[0];
+
+            RestApplication.DATABASE.execQuery(query,
+                    result -> {
+                        JSONArray jsonArray = new JSONArray();
+
+                        while (result.next()) {
+                            JSONObject user = new JSONObject();
+                            userDetails(result.getString("followee"), user);
+                            jsonArray.put(user);
+                        }
+
+                        jsonResult.put("code", 0);
+                        jsonResult.put("response", jsonArray);
+                    });
+        } catch (SQLException e) {
+            jsonResult.put("code", 1);
+            jsonResult.put("response", "Not found");
+        } catch (NullPointerException e) {
+            jsonResult.put("code", 3);
+            jsonResult.put("response", "Invalid request");
+        } catch (RuntimeException e) {
+            jsonResult.put("code", 4);
+            jsonResult.put("response", "Unknown error");
+        }
+
         return Response.status(Response.Status.OK).entity(jsonResult.toString()).build();
     }
 
@@ -187,6 +281,39 @@ public class User {
         Map<String, String[]> params = request.getParameterMap();
         JSONObject jsonResult = new JSONObject();
 
+        try {
+            String email = params.get("user")[0];
+            String query = String.format("SELECT pID FROM post WHERE user='%s'%s ORDER BY date DESC", email,
+                    (params.containsKey("since") ? String.format(" AND date >= '%s'", params.get("since")[0]) : ""));
+            if (params.containsKey("order"))
+                query = query.replace("DESC", params.get("order")[0]);
+            if (params.containsKey("limit"))
+                query += " LIMIT " + params.get("limit")[0];
+
+            RestApplication.DATABASE.execQuery(query,
+                    result -> {
+                        JSONArray jsonArray = new JSONArray();
+
+                        while (result.next()) {
+                            JSONObject post = new JSONObject();
+                            Post.postDetails(result.getString("pID"), post);
+                            jsonArray.put(post);
+                        }
+
+                        jsonResult.put("code", 0);
+                        jsonResult.put("response", jsonArray);
+                    });
+        } catch (SQLException e) {
+            jsonResult.put("code", 1);
+            jsonResult.put("response", "Not found");
+        } catch (NullPointerException e) {
+            jsonResult.put("code", 3);
+            jsonResult.put("response", "Invalid request");
+        } catch (RuntimeException e) {
+            jsonResult.put("code", 4);
+            jsonResult.put("response", "Unknown error");
+        }
+
         return Response.status(Response.Status.OK).entity(jsonResult.toString()).build();
     }
 
@@ -195,8 +322,28 @@ public class User {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response updateProfile(final String input, @Context HttpServletRequest request) {
-        JSONObject jsonObject = new JSONObject(input);
         JSONObject jsonResult = new JSONObject();
+
+        try {
+            JSONObject jsonObject = new JSONObject(input);
+            String email = jsonObject.getString("user");
+
+            RestApplication.DATABASE.execUpdate(String.format("UPDATE user SET about='%s', name='%s' WHERE email='%s'", jsonObject.get("about"), jsonObject.get("name"), email).replaceAll("'null'", "null"));
+
+            JSONObject response = new JSONObject();
+            userDetails(email, response);
+            jsonResult.put("code", 0);
+            jsonResult.put("response", response);
+        } catch (SQLException e) {
+            jsonResult.put("code", 5);
+            jsonResult.put("response", "User exists");
+        } catch (ParseException e) {
+            jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
+            jsonResult.put("response", "Invalid request");
+        } catch (NoSuchElementException e) {
+            jsonResult.put("code", 4);
+            jsonResult.put("response", "Unknown error");
+        }
 
         return Response.status(Response.Status.OK).entity(jsonResult.toString()).build();
     }

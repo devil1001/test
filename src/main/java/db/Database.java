@@ -11,6 +11,7 @@ import java.sql.Statement;
  */
 
 
+
 public class Database {
 
     BasicDataSource dataSource;
@@ -21,6 +22,11 @@ public class Database {
         dataSource.setUrl("jdbc:mysql://localhost:3306/db_techopark");
         dataSource.setUsername("www-data");
         dataSource.setPassword("technopark");
+
+        try {
+            execUpdate("SET NAMES utf8 COLLATE utf8_unicode_ci");
+        } catch (SQLException e) {}
+
     }
 
     @Override
@@ -41,10 +47,19 @@ public class Database {
         }
     }
 
-    public void execUpdate(String update) throws SQLException {
+    public int execUpdate(String update) throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
             try (Statement stmt = connection.createStatement()) {
-                stmt.execute(update);
+                stmt.executeUpdate(update, Statement.RETURN_GENERATED_KEYS);
+                int res = -1;
+
+                try (ResultSet rs = stmt.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        res = rs.getInt(1);
+                    }
+                }
+
+                return res;
             }
         }
     }
