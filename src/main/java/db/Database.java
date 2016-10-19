@@ -23,6 +23,7 @@ public class Database {
         dataSource.setUsername("www-data");
         dataSource.setPassword("technopark");
 
+
         try {
             execUpdate("SET NAMES utf8 COLLATE utf8_unicode_ci");
         } catch (SQLException e) {}

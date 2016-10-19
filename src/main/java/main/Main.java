@@ -6,6 +6,8 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.glassfish.jersey.servlet.ServletContainer;
 
+import javax.xml.crypto.Data;
+
 /**
  * Created by devil1001 on 12.10.16.
  */
