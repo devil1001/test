@@ -1,16 +1,14 @@
 package main;
 
-import db.Database;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.glassfish.jersey.servlet.ServletContainer;
 
-import javax.xml.crypto.Data;
-
 /**
  * Created by devil1001 on 12.10.16.
  */
+
 public class Main {
 
     public static boolean isNumeric(String s) {

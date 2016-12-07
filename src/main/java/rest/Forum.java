@@ -18,43 +18,75 @@ import java.util.NoSuchElementException;
  * Created by devil1001 on 12.10.16.
  */
 
-
+@SuppressWarnings("OverlyComplexMethod")
 @Singleton
 @Path("/forum")
 public class Forum {
+
+    public static final int DUPLICATE_ENTRY = 1062;
 
     @POST
     @Path("create")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response create(final String input, @Context HttpServletRequest request) {
-        JSONObject jsonResult = new JSONObject();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            JSONObject jsonObject = new JSONObject(input);
-
-            String a = jsonObject.getString("name");
-
-            String values = String.format("'%s', '%s', '%s'",
+            final JSONObject jsonObject = new JSONObject(input);
+            final String values = String.format("'%s', '%s', '%s'",
                     jsonObject.getString("name"), jsonObject.getString("short_name"), jsonObject.getString("user"));
 
-            int fID = RestApplication.DATABASE.execUpdate(String.format("INSERT INTO forum (name, short_name, user) VALUES (%s)", values));
+            final int fID = RestApplication.DATABASE.execUpdate(String.format("INSERT INTO forum (name, short_name, user) VALUES (%s)", values));
             jsonObject.put("id", fID);
 
             jsonResult.put("code", 0);
             jsonResult.put("response", jsonObject);
         } catch (SQLException e) {
-            jsonResult.put("code", 5);
-            jsonResult.put("response", "User exists");
+            if (e.getErrorCode() == DUPLICATE_ENTRY) {
+                forumDuplicate(input, jsonResult);
+            } else {
+                jsonResult.put("code", 4);
+                jsonResult.put("response", "Unknown error");
+                System.out.println("Forum sql error:");
+                System.out.println(e.getMessage());
+            }
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
-        } catch (NoSuchElementException e) {
+            System.out.println("Forum invalid error:");
+            System.out.println(e.getMessage());
+        } catch (NoSuchElementException | NullPointerException | ClassCastException e) {
             jsonResult.put("code", 4);
             jsonResult.put("response", "Unknown error");
+            System.out.println("Forum unknown error:");
+            System.out.println(e.getMessage());
         }
 
         return Response.status(Response.Status.OK).entity(jsonResult.toString()).build();
+    }
+
+    private static void forumDuplicate(String input, JSONObject jsonResult){
+        try {
+            final JSONObject jsonObject = new JSONObject(input);
+            RestApplication.DATABASE.execQuery(String.format("SELECT fID FROM forum WHERE short_name=%s", jsonObject.getString("short_name")),
+                    result -> {
+                        result.next();
+                        jsonObject.put("id", result.getInt("fID"));
+                    });
+            jsonResult.put("code", 0);
+            jsonResult.put("response", jsonObject);
+        } catch (SQLException e1) {
+            jsonResult.put("code", 4);
+            jsonResult.put("response", "Unknown error");
+            System.out.println("Forum sql error:");
+            System.out.println(e1.getMessage());
+        } catch (ParseException e1) {
+            jsonResult.put("code", (e1.getMessage().contains("not found") ? 3 : 2));
+            jsonResult.put("response", "Invalid request");
+            System.out.println("Forum invalid error:");
+            System.out.println(e1.getMessage());
+        }
     }
 
     public static void forumDetails(String shortName, JSONObject response) throws SQLException {
@@ -72,16 +104,16 @@ public class Forum {
     @Path("details")
     @Produces(MediaType.APPLICATION_JSON)
     public Response details(@Context HttpServletRequest request) {
-        Map<String, String[]> params = request.getParameterMap();
-        JSONObject jsonResult = new JSONObject();
+        final Map<String, String[]> params = request.getParameterMap();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            String shortName = params.get("forum")[0];
-            JSONObject response = new JSONObject();
+            final String shortName = params.get("forum")[0];
+            final JSONObject response = new JSONObject();
             forumDetails(shortName, response);
 
             if (params.containsKey("related")) {
-                JSONObject user = new JSONObject();
+                final JSONObject user = new JSONObject();
                 User.userDetails(response.getString("user"), user);
                 response.put("user", user);
             }
@@ -105,13 +137,12 @@ public class Forum {
     @GET
     @Path("listPosts")
     @Produces(MediaType.APPLICATION_JSON)
-    @SuppressWarnings("all")
     public Response listPosts(@Context HttpServletRequest request) {
-        Map<String, String[]> params = request.getParameterMap();
-        JSONObject jsonResult = new JSONObject();
+        final Map<String, String[]> params = request.getParameterMap();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            String shortName = params.get("forum")[0];
+            final String shortName = params.get("forum")[0];
             String query = String.format("SELECT pID FROM post WHERE forum='%s'%s ORDER BY date DESC", shortName,
                     (params.containsKey("since") ? String.format(" AND date >= '%s'", params.get("since")[0]) : ""));
             if (params.containsKey("order"))
@@ -121,26 +152,26 @@ public class Forum {
 
             RestApplication.DATABASE.execQuery(query,
                     result -> {
-                        JSONArray jsonArray = new JSONArray();
+                        final JSONArray jsonArray = new JSONArray();
 
                         while (result.next()) {
-                            JSONObject post = new JSONObject();
+                            final JSONObject post = new JSONObject();
                             Post.postDetails(result.getString("pID"), post);
 
                             if (params.containsKey("related")) {
-                                String[] param = params.get("related");
+                                final String[] param = params.get("related");
                                 if(Arrays.asList(param).contains("thread")) {
-                                    JSONObject thread = new JSONObject();
+                                    final JSONObject thread = new JSONObject();
                                     Thread.threadDetails(post.getString("thread"), thread);
                                     post.put("thread", thread);
                                 }
                                 if(Arrays.asList(param).contains("forum")) {
-                                    JSONObject forum = new JSONObject();
+                                    final JSONObject forum = new JSONObject();
                                     Forum.forumDetails(post.getString("forum"), forum);
                                     post.put("forum", forum);
                                 }
                                 if(Arrays.asList(param).contains("user")) {
-                                    JSONObject user = new JSONObject();
+                                    final JSONObject user = new JSONObject();
                                     User.userDetails(post.getString("user"), user);
                                     post.put("user", user);
                                 }
@@ -169,13 +200,12 @@ public class Forum {
     @GET
     @Path("listThreads")
     @Produces(MediaType.APPLICATION_JSON)
-    @SuppressWarnings("all")
     public Response listThreads(@Context HttpServletRequest request) {
-        Map<String, String[]> params = request.getParameterMap();
-        JSONObject jsonResult = new JSONObject();
+        final Map<String, String[]> params = request.getParameterMap();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            String shortName = params.get("forum")[0];
+            final String shortName = params.get("forum")[0];
             String query = String.format("SELECT tID FROM thread WHERE forum='%s'%s ORDER BY date DESC", shortName,
                     (params.containsKey("since") ? String.format(" AND date >= '%s'", params.get("since")[0]) : ""));
             if (params.containsKey("order"))
@@ -185,21 +215,21 @@ public class Forum {
 
             RestApplication.DATABASE.execQuery(query,
                     result -> {
-                        JSONArray jsonArray = new JSONArray();
+                        final JSONArray jsonArray = new JSONArray();
 
                         while (result.next()) {
-                            JSONObject thread = new JSONObject();
+                            final JSONObject thread = new JSONObject();
                             Thread.threadDetails(result.getString("tID"), thread);
 
                             if (params.containsKey("related")) {
-                                String[] param = params.get("related");
+                                final String[] param = params.get("related");
                                 if(Arrays.asList(param).contains("forum")) {
-                                    JSONObject forum = new JSONObject();
+                                    final JSONObject forum = new JSONObject();
                                     Forum.forumDetails(thread.getString("forum"), forum);
                                     thread.put("forum", forum);
                                 }
                                 if(Arrays.asList(param).contains("user")) {
-                                    JSONObject user = new JSONObject();
+                                    final JSONObject user = new JSONObject();
                                     User.userDetails(thread.getString("user"), user);
                                     thread.put("user", user);
                                 }
@@ -229,11 +259,11 @@ public class Forum {
     @Path("listUsers")
     @Produces(MediaType.APPLICATION_JSON)
     public Response listUsers(@Context HttpServletRequest request) {
-        Map<String, String[]> params = request.getParameterMap();
-        JSONObject jsonResult = new JSONObject();
+        final Map<String, String[]> params = request.getParameterMap();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            String shortName = params.get("forum")[0];
+            final String shortName = params.get("forum")[0];
             String query = String.format("SELECT DISTINCT email FROM post p JOIN user u ON p.user=u.email WHERE forum='%s'%s ORDER BY name DESC", shortName,
                     (params.containsKey("since_id") ? String.format(" AND uID >= %s", params.get("since_id")[0]) : ""));
             if (params.containsKey("order"))
@@ -243,10 +273,10 @@ public class Forum {
 
             RestApplication.DATABASE.execQuery(query,
                     result -> {
-                        JSONArray jsonArray = new JSONArray();
+                        final JSONArray jsonArray = new JSONArray();
 
                         while (result.next()) {
-                            JSONObject user = new JSONObject();
+                            final JSONObject user = new JSONObject();
                             User.userDetails(result.getString("email"), user);
                             jsonArray.put(user);
                         }

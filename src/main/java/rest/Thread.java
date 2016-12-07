@@ -18,12 +18,11 @@ import java.util.Date;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
-import static rest.Post.postDetails;
-
 /**
  * Created by devil1001 on 12.10.16.
  */
 
+@SuppressWarnings("OverlyComplexMethod")
 @Singleton
 @Path("/thread")
 public class Thread {
@@ -33,36 +32,37 @@ public class Thread {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response create(final String input, @Context HttpServletRequest request) {
-        JSONObject jsonResult = new JSONObject();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            JSONObject jsonObject = new JSONObject(input);
+            final JSONObject jsonObject = new JSONObject(input);
 
-            String values = String.format("'%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'",
+            final String values = String.format("'%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'",
                     jsonObject.get("forum"), jsonObject.get("title"), (jsonObject.getBoolean("isClosed") ? '1' : '0'), jsonObject.get("user"), jsonObject.get("date"), jsonObject.get("message"), jsonObject.get("slug"),
                     jsonObject.has("isDeleted") ? (jsonObject.getBoolean("isDeleted") ? '1' : '0') : '0').replaceAll("'null'", "null");
 
-            int tID = RestApplication.DATABASE.execUpdate(String.format("INSERT INTO thread (forum, title, isClosed, user, date, message, slug, isDeleted) VALUES (%s)", values));
+            final int tID = RestApplication.DATABASE.execUpdate(String.format("INSERT INTO thread (forum, title, isClosed, user, date, message, slug, isDeleted) VALUES (%s)", values));
             jsonObject.put("id", tID);
 
             jsonResult.put("code", 0);
             jsonResult.put("response", jsonObject);
-        } catch (SQLException e) {
-            jsonResult.put("code", 5);
-            jsonResult.put("response", "User exists");
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
-        } catch (NoSuchElementException e) {
+            System.out.println("Thread invalid error:");
+            System.out.println(e.getMessage());
+        } catch (NoSuchElementException | ClassCastException | NullPointerException | SQLException e) {
             jsonResult.put("code", 4);
             jsonResult.put("response", "Unknown error");
+            System.out.println("Thread unknown error:");
+            System.out.println(e.getMessage());
         }
 
         return Response.status(Response.Status.OK).entity(jsonResult.toString()).build();
     }
 
     public static void threadDetails(String id, JSONObject response) throws SQLException {
-        DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        final DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         RestApplication.DATABASE.execQuery(String.format("SELECT * FROM thread WHERE tID=%s", id),
                 result -> {
                     result.next();
@@ -86,23 +86,23 @@ public class Thread {
     @Path("details")
     @Produces(MediaType.APPLICATION_JSON)
     public Response details(@Context HttpServletRequest request) {
-        Map<String, String[]> params = request.getParameterMap();
-        JSONObject jsonResult = new JSONObject();
+        final Map<String, String[]> params = request.getParameterMap();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            String id = params.get("thread")[0];
-            JSONObject response = new JSONObject();
+            final String id = params.get("thread")[0];
+            final JSONObject response = new JSONObject();
             threadDetails(id, response);
 
             if (params.containsKey("related")) {
-                String[] related = params.get("related");
+                final String[] related = params.get("related");
                 if (Arrays.asList(related).contains("user")) {
-                    JSONObject user = new JSONObject();
+                    final JSONObject user = new JSONObject();
                     User.userDetails(response.getString("user"), user);
                     response.put("user", user);
                 }
                 if (Arrays.asList(related).contains("forum")) {
-                    JSONObject forum = new JSONObject();
+                    final JSONObject forum = new JSONObject();
                     Forum.forumDetails(response.getString("forum"), forum);
                     response.put("forum", forum);
                 }
@@ -129,19 +129,18 @@ public class Thread {
     @GET
     @Path("list")
     @Produces(MediaType.APPLICATION_JSON)
-    @SuppressWarnings("all")
     public Response list(@Context HttpServletRequest request) {
-        Map<String, String[]> params = request.getParameterMap();
-        JSONObject jsonResult = new JSONObject();
+        final Map<String, String[]> params = request.getParameterMap();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
             String query = "";
             if (params.containsKey("forum")) {
-                String shortName = params.get("forum")[0];
+                final String shortName = params.get("forum")[0];
                 query = String.format("SELECT tID FROM thread WHERE forum='%s'%s ORDER BY date DESC", shortName,
                         (params.containsKey("since") ? String.format(" AND date >= '%s'", params.get("since")[0]) : ""));
             } else if (params.containsKey("user")) {
-                String id = params.get("user")[0];
+                final String id = params.get("user")[0];
                 query = String.format("SELECT tID FROM thread WHERE user='%s'%s ORDER BY date DESC", id,
                         (params.containsKey("since") ? String.format(" AND date >= '%s'", params.get("since")[0]) : ""));
             }
@@ -153,10 +152,10 @@ public class Thread {
 
             RestApplication.DATABASE.execQuery(query,
                     result -> {
-                        JSONArray jsonArray = new JSONArray();
+                        final JSONArray jsonArray = new JSONArray();
 
                         while (result.next()) {
-                            JSONObject post = new JSONObject();
+                            final JSONObject post = new JSONObject();
                             threadDetails(result.getString("tID"), post);
                             jsonArray.put(post);
                         }
@@ -181,13 +180,12 @@ public class Thread {
     @GET
     @Path("listPosts")
     @Produces(MediaType.APPLICATION_JSON)
-    @SuppressWarnings("all")
     public Response listPosts(@Context HttpServletRequest request) {
-        Map<String, String[]> params = request.getParameterMap();
-        JSONObject jsonResult = new JSONObject();
+        final Map<String, String[]> params = request.getParameterMap();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            String tID = params.get("thread")[0];
+            final String tID = params.get("thread")[0];
             String order = "ORDER BY date DESC";
             String sort = "";
             if (params.containsKey("sort")) {
@@ -195,7 +193,19 @@ public class Thread {
                 if (sort.equals("tree")) {
                     order = "ORDER BY SUBSTRING(mpath,1,4) DESC, mpath ASC";
                 } else if (sort.equals("parent_tree")) {
-                    order = "ORDER BY SUBSTRING(mpath,1,4) DESC, mpath ASC";
+                    String subquery = String.format("SELECT DISTINCT SUBSTRING(mpath,1,4) as head FROM post WHERE tID=%s%s ORDER BY head DESC, mpath ASC",
+                            tID, (params.containsKey("since") ? String.format(" AND date >= '%s'", params.get("since")[0]) : ""));
+                    if (params.containsKey("order"))
+                        subquery = subquery.replace("DESC", params.get("order")[0]);
+                    if (params.containsKey("limit"))
+                        subquery += " LIMIT " + params.get("limit")[0];
+                    order = String.format("AND SUBSTRING(mpath,1,4) BETWEEN \n" +
+                            "(SELECT MIN(t.head) FROM \n" +
+                            "(%s) t)\n" +
+                            "AND\n" +
+                            "(SELECT MAX(t.head) FROM\n" +
+                            "(%s) t)\n" +
+                            "ORDER BY SUBSTRING(mpath,1,4) DESC, mpath ASC", subquery, subquery);
                 }
             }
 
@@ -206,29 +216,14 @@ public class Thread {
             if (params.containsKey("limit") && !sort.equals("parent_tree"))
                 query += " LIMIT " + params.get("limit")[0];
 
-
-
             RestApplication.DATABASE.execQuery(query,
                     result -> {
-                        JSONArray jsonArray = new JSONArray();
-                        char minPath = 0;
-                        int counter = 0;
-                        result.next();
-                        minPath = result.getString("mpath").charAt(3);
-                        do {
-                            char newChar = result.getString("mpath").charAt(3);
-                            if (minPath != newChar) {
-                                minPath=newChar;
-                                ++counter;
-                            }
-                            if (params.containsKey("sort") && params.get("sort")[0].equals("parent_tree") && params.containsKey("limit") && counter == Integer.valueOf(params.get("limit")[0]))
-                                break;
-
-                            JSONObject post = new JSONObject();
+                        final JSONArray jsonArray = new JSONArray();
+                        while (result.next()) {
+                            final JSONObject post = new JSONObject();
                             Post.postDetails(result.getString("pID"), post);
                             jsonArray.put(post);
-                        } while (result.next());
-
+                        }
                         jsonResult.put("code", 0);
                         jsonResult.put("response", jsonArray);
                     });
@@ -251,10 +246,10 @@ public class Thread {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response open(final String input, @Context HttpServletRequest request) {
-        JSONObject jsonResult = new JSONObject();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            JSONObject jsonObject = new JSONObject(input);
+            final JSONObject jsonObject = new JSONObject(input);
 
             RestApplication.DATABASE.execUpdate(String.format("UPDATE thread SET isClosed=0 WHERE tID=%s", jsonObject.getString("thread")));
 
@@ -279,10 +274,10 @@ public class Thread {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response close(final String input, @Context HttpServletRequest request) {
-        JSONObject jsonResult = new JSONObject();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            JSONObject jsonObject = new JSONObject(input);
+            final JSONObject jsonObject = new JSONObject(input);
 
             RestApplication.DATABASE.execUpdate(String.format("UPDATE thread SET isClosed=1 WHERE tID=%s", jsonObject.getString("thread")));
 
@@ -307,10 +302,10 @@ public class Thread {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response remove(final String input, @Context HttpServletRequest request) {
-        JSONObject jsonResult = new JSONObject();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            JSONObject jsonObject = new JSONObject(input);
+            final JSONObject jsonObject = new JSONObject(input);
 
             RestApplication.DATABASE.execUpdate(String.format("UPDATE thread SET isDeleted=1, posts=0 WHERE tID=%s", jsonObject.getString("thread")));
             RestApplication.DATABASE.execUpdate(String.format("UPDATE post SET isDeleted=1 WHERE tID=%s", jsonObject.getString("thread")));
@@ -336,11 +331,11 @@ public class Thread {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response restore(final String input, @Context HttpServletRequest request) {
-        JSONObject jsonResult = new JSONObject();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            JSONObject jsonObject = new JSONObject(input);
-            String id = jsonObject.getString("thread");
+            final JSONObject jsonObject = new JSONObject(input);
+            final String id = jsonObject.getString("thread");
 
             RestApplication.DATABASE.execUpdate(String.format("UPDATE thread SET isDeleted=0, posts=(SELECT COUNT(*) FROM post WHERE tID=%s) WHERE tID=%s", id, id));
             RestApplication.DATABASE.execUpdate(String.format("UPDATE post SET isDeleted=0 WHERE tID=%s", jsonObject.getString("thread")));
@@ -365,12 +360,12 @@ public class Thread {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response subscribe(final String input, @Context HttpServletRequest request) {
-        JSONObject jsonResult = new JSONObject();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            JSONObject jsonObject = new JSONObject(input);
+            final JSONObject jsonObject = new JSONObject(input);
 
-            RestApplication.DATABASE.execUpdate(String.format("INSERT INTO user_thread VALUES ('%s', %s)", jsonObject.getString("user"), jsonObject.getString("thread")));
+            RestApplication.DATABASE.execUpdate(String.format("INSERT INTO user_thread (user, tID) VALUES ('%s', %s)", jsonObject.getString("user"), jsonObject.getString("thread")));
 
             jsonResult.put("code", 0);
             jsonResult.put("response", jsonObject);
@@ -393,10 +388,10 @@ public class Thread {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response unsubscribe(final String input, @Context HttpServletRequest request) {
-        JSONObject jsonResult = new JSONObject();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            JSONObject jsonObject = new JSONObject(input);
+            final JSONObject jsonObject = new JSONObject(input);
 
             RestApplication.DATABASE.execUpdate(String.format("DELETE FROM user_thread WHERE user='%s' AND tID=%s", jsonObject.getString("user"), jsonObject.getString("thread")));
 
@@ -421,15 +416,15 @@ public class Thread {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response update(final String input, @Context HttpServletRequest request) {
-        JSONObject jsonResult = new JSONObject();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            JSONObject jsonObject = new JSONObject(input);
-            String id = jsonObject.getString("thread");
+            final JSONObject jsonObject = new JSONObject(input);
+            final String id = jsonObject.getString("thread");
 
             RestApplication.DATABASE.execUpdate(String.format("UPDATE thread SET message='%s', slug='%s' WHERE tID=%s", jsonObject.get("message"), jsonObject.get("slug"), id));
 
-            JSONObject response = new JSONObject();
+            final JSONObject response = new JSONObject();
             threadDetails(id, response);
             jsonResult.put("code", 0);
             jsonResult.put("response", response);
@@ -452,18 +447,18 @@ public class Thread {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response vote(final String input, @Context HttpServletRequest request) {
-        JSONObject jsonResult = new JSONObject();
+        final JSONObject jsonResult = new JSONObject();
 
         try {
-            JSONObject jsonObject = new JSONObject(input);
-            String id = jsonObject.getString("thread");
-            int vote = jsonObject.getInt("vote");
+            final JSONObject jsonObject = new JSONObject(input);
+            final String id = jsonObject.getString("thread");
+            final int vote = jsonObject.getInt("vote");
             String likes = "likes=likes+1";
             if (vote < 0) likes = "dislikes=dislikes+1";
 
             RestApplication.DATABASE.execUpdate(String.format("UPDATE thread SET points=points+(%d), %s WHERE tID=%s", vote, likes, id));
 
-            JSONObject response = new JSONObject();
+            final JSONObject response = new JSONObject();
             threadDetails(id, response);
             jsonResult.put("code", 0);
             jsonResult.put("response", response);
