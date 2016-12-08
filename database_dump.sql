@@ -1,10 +1,8 @@
 DROP DATABASE IF EXISTS `db_techopark`;
-CREATE DATABASE `db_techopark` 
+CREATE DATABASE `db_techopark`
 USE `db_techopark`;
 
-
 DROP TABLE IF EXISTS `forum`;
-
 CREATE TABLE `forum` (
   `fID` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `name` char(40) CHARACTER SET utf8 NOT NULL,
@@ -15,11 +13,10 @@ CREATE TABLE `forum` (
   UNIQUE KEY `short_name_UNIQUE` (`short_name`),
   KEY `fk_forum_user` (`user`),
   CONSTRAINT `fk_forum_user` FOREIGN KEY (`user`) REFERENCES `user` (`email`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;ost`
+--
 
 DROP TABLE IF EXISTS `post`;
-
 CREATE TABLE `post` (
   `pID` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `parent` int(11) DEFAULT NULL,
@@ -44,14 +41,10 @@ CREATE TABLE `post` (
   CONSTRAINT `fk_post_forum` FOREIGN KEY (`forum`) REFERENCES `forum` (`short_name`) ON DELETE CASCADE,
   CONSTRAINT `fk_post_thread` FOREIGN KEY (`tID`) REFERENCES `thread` (`tID`) ON DELETE CASCADE,
   CONSTRAINT `fk_post_user` FOREIGN KEY (`user`) REFERENCES `user` (`email`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=35 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-
+) ENGINE=InnoDB AUTO_INCREMENT=32 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 DELIMITER ;;
-
 DELIMITER ;
-
 DROP TABLE IF EXISTS `thread`;
-
 CREATE TABLE `thread` (
   `tID` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `isDeleted` tinyint(1) unsigned NOT NULL DEFAULT '0',
@@ -79,14 +72,14 @@ CREATE TABLE `user` (
   `isAnonymous` tinyint(1) unsigned NOT NULL DEFAULT '0',
   `username` char(30) CHARACTER SET utf8 DEFAULT NULL,
   `about` text CHARACTER SET utf8,
-  `name` char(30) CHARACTER SET utf8 DEFAULT NULL,
+  `name` char(50) CHARACTER SET utf8 DEFAULT NULL,
   `email` char(30) CHARACTER SET utf8 NOT NULL,
   PRIMARY KEY (`uID`),
   UNIQUE KEY `email_UNIQUE` (`email`) USING BTREE,
   KEY `name` (`name`)
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-DROP TABLE IF EXISTS `user_thread`;
 
+DROP TABLE IF EXISTS `user_thread`;
 CREATE TABLE `user_thread` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `user` char(30) NOT NULL,
@@ -109,6 +102,7 @@ CREATE TABLE `user_user` (
   CONSTRAINT `fk_uu_user_1` FOREIGN KEY (`followee`) REFERENCES `user` (`email`) ON DELETE CASCADE,
   CONSTRAINT `fk_uu_user_2` FOREIGN KEY (`follower`) REFERENCES `user` (`email`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
+
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `clear`()
 BEGIN
@@ -122,7 +116,9 @@ TRUNCATE TABLE user_user;
 SET FOREIGN_KEY_CHECKS = 1;
 END ;;
 DELIMITER ;
+
 ALTER DATABASE `db_techopark` CHARACTER SET utf8 COLLATE utf8_general_ci ;
+
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `status`()
 BEGIN
@@ -139,4 +135,5 @@ SELECT COUNT(*) INTO post FROM post;
 SELECT user, thread, forum, post;
 END ;;
 DELIMITER ;
+
 ALTER DATABASE `db_techopark` CHARACTER SET utf8 COLLATE utf8_unicode_ci ;

@@ -207,7 +207,7 @@ public class Post {
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
-        } catch (NoSuchElementException e) {
+        } catch (NoSuchElementException | NullPointerException e) {
             jsonResult.put("code", 4);
             jsonResult.put("response", "Unknown error");
         }
@@ -236,7 +236,7 @@ public class Post {
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
-        } catch (NoSuchElementException e) {
+        } catch (NoSuchElementException | NullPointerException e) {
             jsonResult.put("code", 4);
             jsonResult.put("response", "Unknown error");
         }
@@ -267,7 +267,7 @@ public class Post {
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
-        } catch (NoSuchElementException e) {
+        } catch (NoSuchElementException | NullPointerException e) {
             jsonResult.put("code", 4);
             jsonResult.put("response", "Unknown error");
         }
@@ -301,7 +301,7 @@ public class Post {
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
-        } catch (NoSuchElementException e) {
+        } catch (NoSuchElementException | NullPointerException | NumberFormatException e) {
             jsonResult.put("code", 4);
             jsonResult.put("response", "Unknown error");
         }
