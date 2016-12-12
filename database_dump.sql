@@ -1,7 +1,6 @@
 DROP DATABASE IF EXISTS `db_techopark`;
-CREATE DATABASE `db_techopark`
+CREATE DATABASE `db_techopark` 
 USE `db_techopark`;
-
 DROP TABLE IF EXISTS `forum`;
 CREATE TABLE `forum` (
   `fID` int(11) unsigned NOT NULL AUTO_INCREMENT,
@@ -13,8 +12,8 @@ CREATE TABLE `forum` (
   UNIQUE KEY `short_name_UNIQUE` (`short_name`),
   KEY `fk_forum_user` (`user`),
   CONSTRAINT `fk_forum_user` FOREIGN KEY (`user`) REFERENCES `user` (`email`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;ost`
---
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
 
 DROP TABLE IF EXISTS `post`;
 CREATE TABLE `post` (
@@ -33,17 +32,14 @@ CREATE TABLE `post` (
   `likes` smallint(5) unsigned NOT NULL DEFAULT '0',
   `dislikes` smallint(5) unsigned NOT NULL DEFAULT '0',
   `points` smallint(6) NOT NULL DEFAULT '0',
-  `mpath` char(80) CHARACTER SET utf8 DEFAULT NULL,
+  `mpath` char(200) CHARACTER SET utf8 DEFAULT NULL,
   PRIMARY KEY (`pID`),
   KEY `user_date` (`user`,`date`),
   KEY `forum_date` (`forum`,`date`),
-  KEY `tID_date` (`tID`,`date`),
-  CONSTRAINT `fk_post_forum` FOREIGN KEY (`forum`) REFERENCES `forum` (`short_name`) ON DELETE CASCADE,
-  CONSTRAINT `fk_post_thread` FOREIGN KEY (`tID`) REFERENCES `thread` (`tID`) ON DELETE CASCADE,
-  CONSTRAINT `fk_post_user` FOREIGN KEY (`user`) REFERENCES `user` (`email`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=32 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-DELIMITER ;;
-DELIMITER ;
+  KEY `thread_date` (`tID`,`date`)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+
 DROP TABLE IF EXISTS `thread`;
 CREATE TABLE `thread` (
   `tID` int(11) unsigned NOT NULL AUTO_INCREMENT,
@@ -64,7 +60,8 @@ CREATE TABLE `thread` (
   KEY `forum_date` (`forum`,`date`),
   CONSTRAINT `fk_thread_user` FOREIGN KEY (`user`) REFERENCES `user` (`email`) ON DELETE CASCADE,
   CONSTRAINT `ft_thread_forum` FOREIGN KEY (`forum`) REFERENCES `forum` (`short_name`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
 
 DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user` (
@@ -77,7 +74,7 @@ CREATE TABLE `user` (
   PRIMARY KEY (`uID`),
   UNIQUE KEY `email_UNIQUE` (`email`) USING BTREE,
   KEY `name` (`name`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 DROP TABLE IF EXISTS `user_thread`;
 CREATE TABLE `user_thread` (
@@ -89,8 +86,7 @@ CREATE TABLE `user_thread` (
   KEY `fk_ut_thread` (`tID`),
   CONSTRAINT `fk_ut_thread` FOREIGN KEY (`tID`) REFERENCES `thread` (`tID`) ON DELETE CASCADE,
   CONSTRAINT `fk_ut_user` FOREIGN KEY (`user`) REFERENCES `user` (`email`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8;
-
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
 DROP TABLE IF EXISTS `user_user`;
 CREATE TABLE `user_user` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
@@ -101,8 +97,7 @@ CREATE TABLE `user_user` (
   KEY `fk_uu_user_1` (`followee`),
   CONSTRAINT `fk_uu_user_1` FOREIGN KEY (`followee`) REFERENCES `user` (`email`) ON DELETE CASCADE,
   CONSTRAINT `fk_uu_user_2` FOREIGN KEY (`follower`) REFERENCES `user` (`email`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
-
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `clear`()
 BEGIN
@@ -116,9 +111,31 @@ TRUNCATE TABLE user_user;
 SET FOREIGN_KEY_CHECKS = 1;
 END ;;
 DELIMITER ;
+DELIMITER ;;
+CREATE DEFINER=`root`@`localhost` PROCEDURE `insert_post`(_date DATETIME, threadID INT(11), message TEXT, user CHAR(30), forum CHAR(40), parent INT(11), isApproved TINYINT(1), isHighlighted TINYINT(1), isEdited TINYINT(1), isSpam TINYINT(1), isDeleted TINYINT(1))
+BEGIN
+DECLARE ID INT(8) ZEROFILL;
+DECLARE MATPATH CHAR(200);
+DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+    END;
 
+START TRANSACTION;
+
+INSERT INTO post (date, tID, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) VALUES (_date, threadID, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted);
+SELECT COUNT(*) INTO ID FROM post;
+SET MATPATH=IF(parent IS NULL, CAST(ID AS CHAR), CONCAT_WS('.', (SELECT mpath FROM post WHERE pID=parent), CAST(ID AS CHAR)));
+UPDATE post SET mpath=MATPATH WHERE pID=ID;
+UPDATE thread SET posts=posts+1 WHERE tID = threadID;
+
+COMMIT;
+
+
+SELECT ID;
+END ;;
+DELIMITER ;
 ALTER DATABASE `db_techopark` CHARACTER SET utf8 COLLATE utf8_general_ci ;
-
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `status`()
 BEGIN

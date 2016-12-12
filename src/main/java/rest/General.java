@@ -22,7 +22,7 @@ public class General {
     @Path("clear")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response create(final String input, @Context HttpServletRequest request) {
+    public Response clear(final String input, @Context HttpServletRequest request) {
         final JSONObject jsonResult = new JSONObject();
 
         try {
@@ -41,7 +41,7 @@ public class General {
     @GET
     @Path("status")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response details(@Context HttpServletRequest request) {
+    public Response status(@Context HttpServletRequest request) {
         final JSONObject jsonResult = new JSONObject();
 
         try {

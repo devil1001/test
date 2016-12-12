@@ -18,7 +18,6 @@ import java.util.NoSuchElementException;
  * Created by devil1001 on 12.10.16.
  */
 
-
 @SuppressWarnings("OverlyComplexMethod")
 @Singleton
 @Path("/forum")
