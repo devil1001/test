@@ -10,9 +10,8 @@ CREATE TABLE `forum` (
   PRIMARY KEY (`fID`),
   UNIQUE KEY `name_UNIQUE` (`name`),
   UNIQUE KEY `short_name_UNIQUE` (`short_name`),
-  KEY `fk_forum_user` (`user`),
-  CONSTRAINT `fk_forum_user` FOREIGN KEY (`user`) REFERENCES `user` (`email`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+  KEY `fk_forum_user` (`user`)
+) ENGINE=MyISAM AUTO_INCREMENT=5 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 
 DROP TABLE IF EXISTS `post`;
@@ -37,7 +36,7 @@ CREATE TABLE `post` (
   KEY `user_date` (`user`,`date`),
   KEY `forum_date` (`forum`,`date`),
   KEY `thread_date` (`tID`,`date`)
-) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=30 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 
 DROP TABLE IF EXISTS `thread`;
@@ -57,10 +56,8 @@ CREATE TABLE `thread` (
   `title` char(50) CHARACTER SET utf8 NOT NULL,
   PRIMARY KEY (`tID`),
   KEY `user_date` (`user`,`date`),
-  KEY `forum_date` (`forum`,`date`),
-  CONSTRAINT `fk_thread_user` FOREIGN KEY (`user`) REFERENCES `user` (`email`) ON DELETE CASCADE,
-  CONSTRAINT `ft_thread_forum` FOREIGN KEY (`forum`) REFERENCES `forum` (`short_name`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+  KEY `forum_date` (`forum`,`date`)
+) ENGINE=MyISAM AUTO_INCREMENT=5 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 
 DROP TABLE IF EXISTS `user`;
@@ -74,7 +71,7 @@ CREATE TABLE `user` (
   PRIMARY KEY (`uID`),
   UNIQUE KEY `email_UNIQUE` (`email`) USING BTREE,
   KEY `name` (`name`)
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 DROP TABLE IF EXISTS `user_thread`;
 CREATE TABLE `user_thread` (
@@ -83,10 +80,8 @@ CREATE TABLE `user_thread` (
   `tID` int(11) unsigned NOT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_ut_user` (`user`),
-  KEY `fk_ut_thread` (`tID`),
-  CONSTRAINT `fk_ut_thread` FOREIGN KEY (`tID`) REFERENCES `thread` (`tID`) ON DELETE CASCADE,
-  CONSTRAINT `fk_ut_user` FOREIGN KEY (`user`) REFERENCES `user` (`email`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+  KEY `fk_ut_thread` (`tID`)
+ ) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=utf8;
 DROP TABLE IF EXISTS `user_user`;
 CREATE TABLE `user_user` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
@@ -94,10 +89,8 @@ CREATE TABLE `user_user` (
   `followee` char(30) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_uu_user_2` (`follower`),
-  KEY `fk_uu_user_1` (`followee`),
-  CONSTRAINT `fk_uu_user_1` FOREIGN KEY (`followee`) REFERENCES `user` (`email`) ON DELETE CASCADE,
-  CONSTRAINT `fk_uu_user_2` FOREIGN KEY (`follower`) REFERENCES `user` (`email`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+  KEY `fk_uu_user_1` (`followee`)
+ ) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `clear`()
 BEGIN
