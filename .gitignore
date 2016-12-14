@@ -18,3 +18,5 @@ target/
 src/main/resources/
 src/test/
 target/classes
+.DS_Store
+
