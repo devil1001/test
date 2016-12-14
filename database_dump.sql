@@ -1,7 +1,14 @@
 DROP DATABASE IF EXISTS `db_techopark`;
-CREATE DATABASE `db_techopark`
+CREATE DATABASE `db_techopark` /*!40100 DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci */;
 USE `db_techopark`;
+
+--
+-- Table structure for table `forum`
+--
+
 DROP TABLE IF EXISTS `forum`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `forum` (
   `fID` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `name` char(40) CHARACTER SET utf8 NOT NULL,
@@ -11,10 +18,16 @@ CREATE TABLE `forum` (
   UNIQUE KEY `name_UNIQUE` (`name`),
   UNIQUE KEY `short_name_UNIQUE` (`short_name`),
   KEY `fk_forum_user` (`user`)
-) ENGINE=MyISAM AUTO_INCREMENT=5 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Table structure for table `post`
+--
 
 DROP TABLE IF EXISTS `post`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `post` (
   `pID` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `parent` int(11) DEFAULT NULL,
@@ -34,12 +47,18 @@ CREATE TABLE `post` (
   `mpath` char(200) CHARACTER SET utf8 DEFAULT NULL,
   PRIMARY KEY (`pID`),
   KEY `user_date` (`user`,`date`),
-  KEY `forum_date` (`forum`,`date`),
-  KEY `thread_date` (`tID`,`date`)
-) ENGINE=MyISAM AUTO_INCREMENT=30 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+  KEY `thread_date` (`tID`,`date`),
+  KEY `forum_date` (`forum`,`date`)
+) ENGINE=InnoDB AUTO_INCREMENT=34 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Table structure for table `thread`
+--
 
 DROP TABLE IF EXISTS `thread`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `thread` (
   `tID` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `isDeleted` tinyint(1) unsigned NOT NULL DEFAULT '0',
@@ -57,10 +76,16 @@ CREATE TABLE `thread` (
   PRIMARY KEY (`tID`),
   KEY `user_date` (`user`,`date`),
   KEY `forum_date` (`forum`,`date`)
-) ENGINE=MyISAM AUTO_INCREMENT=5 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Table structure for table `user`
+--
 
 DROP TABLE IF EXISTS `user`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `user` (
   `uID` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `isAnonymous` tinyint(1) unsigned NOT NULL DEFAULT '0',
@@ -71,26 +96,39 @@ CREATE TABLE `user` (
   PRIMARY KEY (`uID`),
   UNIQUE KEY `email_UNIQUE` (`email`) USING BTREE,
   KEY `name` (`name`)
-) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `user_thread`
+--
 
 DROP TABLE IF EXISTS `user_thread`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `user_thread` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `user` char(30) NOT NULL,
   `tID` int(11) unsigned NOT NULL,
   PRIMARY KEY (`id`),
-  KEY `fk_ut_user` (`user`),
-  KEY `fk_ut_thread` (`tID`)
- ) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=utf8;
+  UNIQUE KEY `user_tID` (`user`,`tID`)
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `user_user`
+--
+
 DROP TABLE IF EXISTS `user_user`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `user_user` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `follower` char(30) NOT NULL,
   `followee` char(30) NOT NULL,
   PRIMARY KEY (`id`),
-  KEY `fk_uu_user_2` (`follower`),
-  KEY `fk_uu_user_1` (`followee`)
- ) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
+  UNIQUE KEY `user_user` (`follower`,`followee`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `clear`()
 BEGIN
@@ -109,21 +147,16 @@ CREATE DEFINER=`root`@`localhost` PROCEDURE `insert_post`(_date DATETIME, thread
 BEGIN
 DECLARE ID INT(8) ZEROFILL;
 DECLARE MATPATH CHAR(200);
-DECLARE EXIT HANDLER FOR SQLEXCEPTION
-    BEGIN
-        ROLLBACK;
-    END;
-
-START TRANSACTION;
 
 INSERT INTO post (date, tID, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) VALUES (_date, threadID, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted);
-SET ID = IF((SELECT COUNT(*) FROM post)=0, LAST_INSERT_ID()-1, LAST_INSERT_ID());
+SET ID = LAST_INSERT_ID();
 SET MATPATH=IF(parent IS NULL, CAST(ID AS CHAR), CONCAT_WS('.', (SELECT mpath FROM post WHERE pID=parent), CAST(ID AS CHAR)));
 UPDATE post SET mpath=MATPATH WHERE pID=ID;
-UPDATE thread SET posts=posts+1 WHERE tID = threadID;
-
-COMMIT;
-
+CASE isDeleted
+  WHEN 0 THEN
+    UPDATE thread SET posts=posts+1 WHERE tID = threadID;
+  ELSE BEGIN END;
+END CASE;
 
 SELECT ID;
 END ;;
@@ -145,5 +178,4 @@ SELECT COUNT(*) INTO post FROM post;
 SELECT user, thread, forum, post;
 END ;;
 DELIMITER ;
-
 ALTER DATABASE `db_techopark` CHARACTER SET utf8 COLLATE utf8_unicode_ci ;
