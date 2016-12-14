@@ -8,6 +8,7 @@ import javax.ws.rs.*;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.ParseException;
 import java.util.Arrays;
@@ -90,14 +91,18 @@ public class Forum {
     }
 
     public static void forumDetails(String shortName, JSONObject response) throws SQLException {
-        RestApplication.DATABASE.execQuery(String.format("SELECT fID, name, user FROM forum WHERE short_name='%s'", shortName),
+        RestApplication.DATABASE.execQuery(String.format("SELECT * FROM forum WHERE short_name='%s'", shortName),
                 result -> {
                     result.next();
-                    response.put("short_name", shortName);
-                    response.put("id", result.getInt("fID"));
-                    response.put("name", result.getString("name"));
-                    response.put("user", result.getString("user"));
+                    forumDetailstoJSON(result, response);
                 });
+    }
+
+    public static void forumDetailstoJSON(ResultSet result, JSONObject response) throws SQLException {
+        response.put("short_name", result.getString("short_name"));
+        response.put("id", result.getInt("fID"));
+        response.put("name", result.getString("name"));
+        response.put("user", result.getString("user"));
     }
 
     @GET
@@ -142,13 +147,12 @@ public class Forum {
         final JSONObject jsonResult = new JSONObject();
 
         try {
-            final String shortName = params.get("forum")[0];
-            String query = String.format("SELECT pID FROM post WHERE forum='%s'%s ORDER BY date DESC", shortName,
-                    (params.containsKey("since") ? String.format(" AND date >= '%s'", params.get("since")[0]) : ""));
-            if (params.containsKey("order"))
-                query = query.replace("DESC", params.get("order")[0]);
-            if (params.containsKey("limit"))
-                query += " LIMIT " + params.get("limit")[0];
+            final String query = String.format("SELECT * FROM post WHERE forum='%s' %s %s %s",
+                    params.get("forum")[0],
+                    (params.containsKey("since") ? String.format("AND date >= '%s'", params.get("since")[0]) : ""),
+                    String.format("ORDER BY date %s", ((params.containsKey("order") ? params.get("order")[0] : "desc"))),
+                    (params.containsKey("limit") ? String.format("LIMIT %s", params.get("limit")[0]) : "")
+            );
 
             RestApplication.DATABASE.execQuery(query,
                     result -> {
@@ -156,7 +160,7 @@ public class Forum {
 
                         while (result.next()) {
                             final JSONObject post = new JSONObject();
-                            Post.postDetails(result.getString("pID"), post);
+                            Post.postDetailstoJSON(result, post);
 
                             if (params.containsKey("related")) {
                                 final String[] param = params.get("related");
@@ -205,13 +209,12 @@ public class Forum {
         final JSONObject jsonResult = new JSONObject();
 
         try {
-            final String shortName = params.get("forum")[0];
-            String query = String.format("SELECT tID FROM thread WHERE forum='%s'%s ORDER BY date DESC", shortName,
-                    (params.containsKey("since") ? String.format(" AND date >= '%s'", params.get("since")[0]) : ""));
-            if (params.containsKey("order"))
-                query = query.replace("DESC", params.get("order")[0]);
-            if (params.containsKey("limit"))
-                query += " LIMIT " + params.get("limit")[0];
+            final String query = String.format("SELECT * FROM thread WHERE forum='%s' %s %s %s",
+                    params.get("forum")[0],
+                    (params.containsKey("since") ? String.format("AND date >= '%s'", params.get("since")[0]) : ""),
+                    String.format("ORDER BY date %s", ((params.containsKey("order") ? params.get("order")[0] : "desc"))),
+                    (params.containsKey("limit") ? String.format("LIMIT %s", params.get("limit")[0]) : "")
+            );
 
             RestApplication.DATABASE.execQuery(query,
                     result -> {
@@ -219,7 +222,7 @@ public class Forum {
 
                         while (result.next()) {
                             final JSONObject thread = new JSONObject();
-                            Thread.threadDetails(result.getString("tID"), thread);
+                            Thread.threadDetailstoJSON(result, thread);
 
                             if (params.containsKey("related")) {
                                 final String[] param = params.get("related");
@@ -263,14 +266,12 @@ public class Forum {
         final JSONObject jsonResult = new JSONObject();
 
         try {
-            final String shortName = params.get("forum")[0];
-
-            String query = String.format("SELECT email FROM user FORCE INDEX(name) WHERE email IN (SELECT DISTINCT user FROM post WHERE forum='%s') %s ORDER BY name DESC",
-                    shortName, (params.containsKey("since_id") ? String.format("AND uID >= %s", params.get("since_id")[0]) : ""));
-            if (params.containsKey("order"))
-                query = query.replace("DESC", params.get("order")[0]);
-            if (params.containsKey("limit"))
-                query += " LIMIT " + params.get("limit")[0];
+            final String query = String.format("SELECT * FROM user FORCE INDEX(name) WHERE email IN (SELECT DISTINCT user FROM post WHERE forum='%s') %s %s %s",
+                    params.get("forum")[0],
+                    (params.containsKey("since_id") ? String.format("AND uID >= %s", params.get("since_id")[0]) : ""),
+                    String.format("ORDER BY name %s", ((params.containsKey("order") ? params.get("order")[0] : "desc"))),
+                    (params.containsKey("limit") ? String.format("LIMIT %s", params.get("limit")[0]) : "")
+            );
 
             RestApplication.DATABASE.execQuery(query,
                     result -> {
@@ -278,7 +279,7 @@ public class Forum {
 
                         while (result.next()) {
                             final JSONObject user = new JSONObject();
-                            User.userDetails(result.getString("email"), user);
+                            User.userDetailstoJSON(result, user);
                             jsonArray.put(user);
                         }
 

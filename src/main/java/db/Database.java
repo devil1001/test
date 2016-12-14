@@ -10,8 +10,6 @@ import java.sql.Statement;
  * Created by devil1001 on 14.10.16.
  */
 
-
-
 public class Database {
 
     final BasicDataSource dataSource;
@@ -19,14 +17,10 @@ public class Database {
     public Database() {
         dataSource = new BasicDataSource();
         dataSource.setDriverClassName("com.mysql.jdbc.Driver");
-        dataSource.setUrl("jdbc:mysql://localhost:3306/db_techopark");
+        dataSource.setUrl("jdbc:mysql://localhost:3306/db_techopark?allowMultiQueries=true");
         dataSource.setUsername("www-data");
         dataSource.setPassword("technopark");
-
-        try {
-            execUpdate("SET NAMES utf8 COLLATE utf8_unicode_ci");
-        } catch (SQLException ignored) {}
-
+        dataSource.setPoolPreparedStatements(true);
     }
 
     @Override
