@@ -13,8 +13,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.ParseException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import static main.Helper.*;
 
 /**
  * Created by devil1001 on 12.10.16.
@@ -24,8 +26,6 @@ import java.util.NoSuchElementException;
 @Singleton
 @Path("/forum")
 public class Forum {
-
-    public static final int DUPLICATE_ENTRY = 1062;
 
     @POST
     @Path("create")
@@ -50,19 +50,13 @@ public class Forum {
             } else {
                 jsonResult.put("code", 4);
                 jsonResult.put("response", "Unknown error");
-                System.out.println("Forum sql error:");
-                System.out.println(e.getMessage());
             }
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
-            System.out.println("Forum invalid error:");
-            System.out.println(e.getMessage());
         } catch (NoSuchElementException | NullPointerException | ClassCastException e) {
             jsonResult.put("code", 4);
             jsonResult.put("response", "Unknown error");
-            System.out.println("Forum unknown error:");
-            System.out.println(e.getMessage());
         }
 
         return Response.status(Response.Status.OK).entity(jsonResult.toString()).build();
@@ -81,13 +75,9 @@ public class Forum {
         } catch (SQLException e1) {
             jsonResult.put("code", 4);
             jsonResult.put("response", "Unknown error");
-            System.out.println("Forum sql error:");
-            System.out.println(e1.getMessage());
         } catch (ParseException e1) {
             jsonResult.put("code", (e1.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
-            System.out.println("Forum invalid error:");
-            System.out.println(e1.getMessage());
         }
     }
 
@@ -119,9 +109,12 @@ public class Forum {
             forumDetails(database, shortName, response);
 
             if (params.containsKey("related")) {
-                final JSONObject user = new JSONObject();
-                User.userDetails(database, response.getString("user"), user);
-                response.put("user", user);
+                final List<String> related = Arrays.asList(params.get("related"));
+                if (related.contains("user")) {
+                    final JSONObject user = new JSONObject();
+                    User.userDetails(database, response.getString("user"), user);
+                    response.put("user", user);
+                }
             }
 
             jsonResult.put("code", 0);
@@ -164,18 +157,18 @@ public class Forum {
                             Post.postDetailstoJSON(result, post);
 
                             if (params.containsKey("related")) {
-                                final String[] param = params.get("related");
-                                if(Arrays.asList(param).contains("thread")) {
+                                final List<String> related = Arrays.asList(params.get("related"));
+                                if (related.contains("thread")) {
                                     final JSONObject thread = new JSONObject();
                                     ForumThread.threadDetails(database, post.getString("thread"), thread);
                                     post.put("thread", thread);
                                 }
-                                if(Arrays.asList(param).contains("forum")) {
+                                if (related.contains("forum")) {
                                     final JSONObject forum = new JSONObject();
                                     Forum.forumDetails(database, post.getString("forum"), forum);
                                     post.put("forum", forum);
                                 }
-                                if(Arrays.asList(param).contains("user")) {
+                                if (related.contains("user")) {
                                     final JSONObject user = new JSONObject();
                                     User.userDetails(database, post.getString("user"), user);
                                     post.put("user", user);
@@ -226,13 +219,13 @@ public class Forum {
                             ForumThread.threadDetailstoJSON(result, thread);
 
                             if (params.containsKey("related")) {
-                                final String[] param = params.get("related");
-                                if(Arrays.asList(param).contains("forum")) {
+                                final List<String> related = Arrays.asList(params.get("related"));
+                                if (related.contains("forum")) {
                                     final JSONObject forum = new JSONObject();
                                     Forum.forumDetails(database, thread.getString("forum"), forum);
                                     thread.put("forum", forum);
                                 }
-                                if(Arrays.asList(param).contains("user")) {
+                                if (related.contains("user")) {
                                     final JSONObject user = new JSONObject();
                                     User.userDetails(database, thread.getString("user"), user);
                                     thread.put("user", user);
@@ -267,7 +260,7 @@ public class Forum {
         final JSONObject jsonResult = new JSONObject();
 
         try {
-            final String query = String.format("SELECT * FROM user FORCE INDEX(name) WHERE email IN (SELECT DISTINCT user FROM post WHERE forum='%s') %s %s %s",
+            final String query = String.format("SELECT * FROM user WHERE email IN (SELECT DISTINCT user FROM post WHERE forum='%s') %s %s %s",
                     params.get("forum")[0],
                     (params.containsKey("since_id") ? String.format("AND uID >= %s", params.get("since_id")[0]) : ""),
                     String.format("ORDER BY name %s", ((params.containsKey("order") ? params.get("order")[0] : "desc"))),

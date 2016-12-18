@@ -8,6 +8,7 @@ import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.servlet.ServletContainer;
 import rest.*;
+import static main.Helper.disableDebugInfo;
 
 /**
  * Created by devil1001 on 12.10.16.
@@ -28,20 +29,11 @@ public class Main {
         }
     }
 
-    public static boolean isNumeric(String s) {
-        return s.matches("\\d+");
-    }
-
     @SuppressWarnings("OverlyBroadThrowsClause")
     public static void main(String[] args) throws Exception {
-        int port = -1;
-        if (args.length == 1 && isNumeric(args[0])) {
-            port = Integer.valueOf(args[0]);
-        } else {
-            System.err.println("Specify port");
-            System.exit(1);
-        }
+        disableDebugInfo();
 
+        final int port = Integer.valueOf(args[0]);
         final Database database = new Database();
 
         System.out.append("Jetty starting at port: ").append(String.valueOf(port)).append('\n');

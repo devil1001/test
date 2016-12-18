@@ -13,13 +13,13 @@ import java.sql.Statement;
 
 public class Database {
 
-    ComboPooledDataSource dataSource;
+    final ComboPooledDataSource dataSource;
 
     @SuppressWarnings("MagicNumber")
     public Database() throws PropertyVetoException {
         dataSource = new ComboPooledDataSource();
         dataSource.setDriverClass("com.mysql.jdbc.Driver");
-        dataSource.setJdbcUrl("jdbc:mysql://localhost:3306/db_techopark?allowMultiQueries=true&autoReconnect=true");
+        dataSource.setJdbcUrl("jdbc:mysql://localhost:3306/db_techopark?allowMultiQueries=true&useSSL=false");
         dataSource.setUser("www-data");
         dataSource.setPassword("technopark");
 
@@ -54,8 +54,7 @@ public class Database {
     public int execUpdate(String update) throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
             try (Statement stmt = connection.createStatement()) {
-                stmt.executeUpdate(update, Statement.RETURN_GENERATED_KEYS);
-                int res = -1;
+                int res = stmt.executeUpdate(update, Statement.RETURN_GENERATED_KEYS);
 
                 try (ResultSet result = stmt.getGeneratedKeys()) {
                     if (result.next()) { res = result.getInt(1); }

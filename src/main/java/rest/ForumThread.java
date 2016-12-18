@@ -11,14 +11,9 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.text.DateFormat;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import static rest.Forum.DUPLICATE_ENTRY;
+import java.util.*;
+import static main.Helper.*;
 
 /**
  * Created by devil1001 on 12.10.16.
@@ -42,8 +37,8 @@ public class ForumThread {
             final String values = String.format("'%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'",
                     jsonObject.get("forum"), jsonObject.get("title"), jsonObject.get("user"),
                     jsonObject.get("date"), jsonObject.get("message"), jsonObject.get("slug"),
-                    (jsonObject.getBoolean("isClosed") ? '1' : '0'),
-                    jsonObject.has("isDeleted") ? (jsonObject.getBoolean("isDeleted") ? '1' : '0') : '0');
+                    serializeBoolean(jsonObject.getBoolean("isClosed")),
+                    serializeBoolean(jsonObject.optBoolean("isDeleted")));
 
             final int tID = database.execUpdate(
                     String.format("INSERT INTO thread (forum, title, user, date, message, slug, isClosed, isDeleted) VALUES (%s)", values));
@@ -54,13 +49,9 @@ public class ForumThread {
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
-            System.out.println("Thread invalid error:");
-            System.out.println(e.getMessage());
         } catch (NoSuchElementException | ClassCastException | NullPointerException | SQLException e) {
             jsonResult.put("code", 4);
             jsonResult.put("response", "Unknown error");
-            System.out.println("Thread unknown error:");
-            System.out.println(e.getMessage());
         }
 
         return Response.status(Response.Status.OK).entity(jsonResult.toString()).build();
@@ -75,9 +66,7 @@ public class ForumThread {
     }
 
     public static void threadDetailstoJSON(ResultSet result, JSONObject response) throws SQLException {
-        final DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-
-        response.put("date", df.format(new Date(result.getTimestamp("date").getTime())));
+        response.put("date", DATE_FORMAT.format(new Date(result.getTimestamp("date").getTime())));
         response.put("dislikes", result.getInt("dislikes"));
         response.put("forum", result.getString("forum"));
         response.put("id", result.getInt("tID"));
@@ -105,18 +94,18 @@ public class ForumThread {
             threadDetails(database, id, response);
 
             if (params.containsKey("related")) {
-                final String[] related = params.get("related");
-                if (Arrays.asList(related).contains("user")) {
+                final List<String> related = Arrays.asList(params.get("related"));
+                if (related.contains("user")) {
                     final JSONObject user = new JSONObject();
                     User.userDetails(database, response.getString("user"), user);
                     response.put("user", user);
                 }
-                if (Arrays.asList(related).contains("forum")) {
+                if (related.contains("forum")) {
                     final JSONObject forum = new JSONObject();
                     Forum.forumDetails(database, response.getString("forum"), forum);
                     response.put("forum", forum);
                 }
-                if (Arrays.asList(related).contains("thread"))
+                if (related.contains("thread"))
                     throw new NullPointerException();
             }
 
@@ -188,36 +177,32 @@ public class ForumThread {
         final JSONObject jsonResult = new JSONObject();
 
         try {
-            final String tID = params.get("thread")[0];
-            String order = "ORDER BY date DESC";
-            String sort = "";
-            if (params.containsKey("sort")) {
-                sort = params.get("sort")[0];
-                if (sort.equals("tree")) {
-                    order = "ORDER BY SUBSTRING_INDEX(mpath,'.',1) DESC, mpath ASC";
-                } else if (sort.equals("parent_tree")) {
-                    String subquery = String.format("SELECT DISTINCT SUBSTRING_INDEX(mpath,'.',1) as head FROM post WHERE thread=%s%s ORDER BY head DESC",
-                            tID, (params.containsKey("since") ? String.format(" AND date >= '%s'", params.get("since")[0]) : ""));
-                    if (params.containsKey("order"))
-                        subquery = subquery.replace("DESC", params.get("order")[0]);
-                    if (params.containsKey("limit"))
-                        subquery += " LIMIT " + params.get("limit")[0];
-                    order = String.format("AND SUBSTRING_INDEX(mpath,'.',1) BETWEEN \n" +
-                            "(SELECT MIN(t.head) FROM \n" +
-                            "(%s) t)\n" +
-                            "AND\n" +
-                            "(SELECT MAX(t.head) FROM\n" +
-                            "(%s) t)\n" +
-                            "ORDER BY SUBSTRING_INDEX(mpath,'.',1) DESC, mpath ASC", subquery, subquery);
+            final String sort = (params.containsKey("sort") ? params.get("sort")[0] : "flat");
+            final String query;
+            if (sort.equals("parent_tree")) {
+                final String order = params.containsKey("order") ? params.get("order")[0] : "desc";
+                query = String.format("SELECT p.* FROM post p JOIN " +
+                                "(SELECT DISTINCT SUBSTRING_INDEX(mpath,'.',1) as head FROM post WHERE thread=%s ORDER BY head %s %s) t ON mpath LIKE CONCAT(t.head, '%%') " +
+                                "%s ORDER BY t.head %s, mpath ASC",
+                        params.get("thread")[0], order,
+                        (params.containsKey("limit") ? String.format("LIMIT %s", params.get("limit")[0]) : ""),
+                        (params.containsKey("since") ? String.format("WHERE date >= '%s'", params.get("since")[0]) : ""),
+                        order);
+            } else {
+                final String order;
+                if (sort.equals("flat")) {
+                    order = String.format("ORDER BY date %s", ((params.containsKey("order") ? params.get("order")[0] : "desc")));
+                } else {
+                    order = String.format("ORDER BY SUBSTRING_INDEX(mpath,'.',1) %s, mpath ASC", ((params.containsKey("order") ? params.get("order")[0] : "desc")));
                 }
-            }
 
-            String query = String.format("SELECT * FROM post WHERE thread=%s%s %s", tID,
-                    (params.containsKey("since") ? String.format(" AND date >= '%s'", params.get("since")[0]) : ""), order) ;
-            if (params.containsKey("order"))
-                query = query.replace("DESC", params.get("order")[0]);
-            if (params.containsKey("limit") && !sort.equals("parent_tree"))
-                query += " LIMIT " + params.get("limit")[0];
+                query = String.format("SELECT * FROM post WHERE thread=%s %s %s %s",
+                        params.get("thread")[0],
+                        (params.containsKey("since") ? String.format("AND date >= '%s'", params.get("since")[0]) : ""),
+                        order,
+                        (params.containsKey("limit") ? String.format("LIMIT %s", params.get("limit")[0]) : "")
+                );
+            }
 
             database.execQuery(query,
                     result -> {
@@ -259,8 +244,8 @@ public class ForumThread {
             jsonResult.put("code", 0);
             jsonResult.put("response", jsonObject);
         } catch (SQLException e) {
-            jsonResult.put("code", 5);
-            jsonResult.put("response", "User exists");
+            jsonResult.put("code", 1);
+            jsonResult.put("response", "Not found");
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
@@ -281,14 +266,13 @@ public class ForumThread {
 
         try {
             final JSONObject jsonObject = new JSONObject(input);
-
             database.execUpdate(String.format("UPDATE thread SET isClosed=1 WHERE tID=%s", jsonObject.getString("thread")));
 
             jsonResult.put("code", 0);
             jsonResult.put("response", jsonObject);
         } catch (SQLException e) {
-            jsonResult.put("code", 5);
-            jsonResult.put("response", "User exists");
+            jsonResult.put("code", 1);
+            jsonResult.put("response", "Not found");
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
@@ -309,17 +293,16 @@ public class ForumThread {
 
         try {
             final JSONObject jsonObject = new JSONObject(input);
-
             database.execUpdate(
-                    String.format("UPDATE thread SET isDeleted=1, posts=0 WHERE tID=%s; UPDATE post SET isDeleted=1 WHERE thread=%s",
-                            jsonObject.getString("thread"), jsonObject.getString("thread"))
+                    String.format("UPDATE thread SET isDeleted=1, posts=0 WHERE tID=%s; UPDATE post SET isDeleted=1 WHERE thread=%1$s",
+                            jsonObject.getString("thread"))
             );
 
             jsonResult.put("code", 0);
             jsonResult.put("response", jsonObject);
         } catch (SQLException e) {
-            jsonResult.put("code", 5);
-            jsonResult.put("response", "User exists");
+            jsonResult.put("code", 1);
+            jsonResult.put("response", "Not found");
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
@@ -341,17 +324,14 @@ public class ForumThread {
             final JSONObject jsonObject = new JSONObject(input);
             final String id = jsonObject.getString("thread");
 
-            database.execUpdate(
-                    String.format("UPDATE thread SET isDeleted=0, posts=(SELECT COUNT(*) FROM post WHERE thread=%s) WHERE tID=%s;" +
-                                    "UPDATE post SET isDeleted=0 WHERE thread=%s",
-                            id, id, jsonObject.getString("thread"))
-            );
+            final int count = database.execUpdate(String.format("UPDATE post SET isDeleted=0 WHERE thread=%s", id));
+            database.execUpdate(String.format("UPDATE thread SET isDeleted=0, posts=%d WHERE tID=%s", count, id));
 
             jsonResult.put("code", 0);
             jsonResult.put("response", jsonObject);
         } catch (SQLException e) {
-            jsonResult.put("code", 5);
-            jsonResult.put("response", "User exists");
+            jsonResult.put("code", 1);
+            jsonResult.put("response", "Not found");
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
@@ -371,7 +351,6 @@ public class ForumThread {
 
         try {
             final JSONObject jsonObject = new JSONObject(input);
-
             database.execUpdate(String.format("INSERT INTO user_thread (user, tID) VALUES ('%s', %s)",
                     jsonObject.getString("user"), jsonObject.getString("thread"))
             );
@@ -384,8 +363,6 @@ public class ForumThread {
             } else {
                 jsonResult.put("code", 4);
                 jsonResult.put("response", "Unknown error");
-                System.out.println("Thread sql error:");
-                System.out.println(e.getMessage());
             }
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
@@ -406,8 +383,6 @@ public class ForumThread {
         } catch (ParseException e1) {
             jsonResult.put("code", (e1.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
-            System.out.println("Forum invalid error:");
-            System.out.println(e1.getMessage());
         }
     }
 
@@ -428,8 +403,8 @@ public class ForumThread {
             jsonResult.put("code", 0);
             jsonResult.put("response", jsonObject);
         } catch (SQLException e) {
-            jsonResult.put("code", 5);
-            jsonResult.put("response", "User exists");
+            jsonResult.put("code", 1);
+            jsonResult.put("response", "Not found");
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
@@ -461,8 +436,8 @@ public class ForumThread {
             jsonResult.put("code", 0);
             jsonResult.put("response", response);
         } catch (SQLException e) {
-            jsonResult.put("code", 5);
-            jsonResult.put("response", "User exists");
+            jsonResult.put("code", 1);
+            jsonResult.put("response", "Not found");
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
@@ -495,8 +470,8 @@ public class ForumThread {
             jsonResult.put("code", 0);
             jsonResult.put("response", response);
         } catch (SQLException e) {
-            jsonResult.put("code", 5);
-            jsonResult.put("response", "User exists");
+            jsonResult.put("code", 1);
+            jsonResult.put("response", "Not found");
         } catch (ParseException e) {
             jsonResult.put("code", (e.getMessage().contains("not found") ? 3 : 2));
             jsonResult.put("response", "Invalid request");
